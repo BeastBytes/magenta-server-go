@@ -1,0 +1,9 @@
+The purpose of the chat server is to provide communication channels between multiple users.  A user can join chatrooms (one or more at any given time), and send and receive chat messages in those chat rooms from other users.
+
+Everyone in a chat room will receive any chats sent from any user within that chat room.
+
+A user may create a new room.
+
+A user may send a private message to one or more other users on the same server.
+
+The server will be able to archive all messages in a database for later retrieval by users.
