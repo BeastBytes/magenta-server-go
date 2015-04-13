@@ -5,6 +5,7 @@
 *.o
 *.a
 *.so
+magenta-server-go
 
 # Folders
 _obj
