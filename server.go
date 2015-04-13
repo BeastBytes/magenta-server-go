@@ -40,6 +40,7 @@ func main() {
 
 	handleClient(connection)
 
+	// An infinite loop to keep us from exiting
 	for {
 
 	}
@@ -49,11 +50,11 @@ func main() {
 
 func handleClient(conn net.Conn) {
 	var buffer [MAX_MESSAGE_LENGTH]byte
-
+	client.Conn = conn
 	//Prompt the client for a name
 	// TODO: Eventually we will have the client send their name
 	// upon connection without having the server prompt them for it
-	promptClientForName(conn)
+	promptClientForName(client)
 
 	for {
 		buflen, err := conn.Read(buffer[0:])
@@ -66,34 +67,35 @@ func handleClient(conn net.Conn) {
 		}
 
 		// Print the clients input to the console and also return it to the client
-		sendToClient(conn, string(buffer[:buflen]))
+		sendToClient(client, string(buffer[:buflen]))
 
 	}
 }
 
 // Send message to the client
-func sendToClient(conn net.Conn, message string) {
-	_, err := conn.Write([]byte(message))
+func sendToClient(client Client, message string) {
+	_, err := client.Conn.Write([]byte(message))
 	if err != nil {
 		log.Println(err)
-		conn.Close()
+		client.Conn.Close()
 	}
 }
 
 // Prompt the client for their name and set it in the client struct.
-func promptClientForName(conn net.Conn) {
-	conn.Write([]byte("What is your name? "))
+func promptClientForName(client Client) {
+	client.Conn.Write([]byte("What is your name? "))
 
 	var buffer [MAX_NAME_LENGTH]byte
-	buflen, err := conn.Read(buffer[0:])
+	buflen, err := client.Conn.Read(buffer[0:])
 	if err != nil {
 		log.Println(err)
-		conn.Write([]byte("There was an error with your input, please reconnect and try again.\n"))
-		conn.Close()
+		client.Conn.Write([]byte("There was an error with your input, please reconnect and try again.\n"))
+		client.Conn.Close()
 		return
 	}
 
 	client.Name = string(buffer[:buflen])
+	client.Conn.Write([]byte("Hello, " + client.Name))
 }
 
 // Check for an error.  If there is an error, log it, and exit the program
