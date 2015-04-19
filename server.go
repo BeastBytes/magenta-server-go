@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -10,7 +11,7 @@ import (
 type Server struct {
 	clients        []*Client
 	newConnections chan net.Conn
-	incoming       chan string
+	incoming       chan Message
 	outgoing       chan string
 	port           string
 	listener       net.Listener
@@ -21,7 +22,7 @@ func NewServer(port string) *Server {
 	server := &Server{
 		clients:        make([]*Client, 0),
 		newConnections: make(chan net.Conn),
-		incoming:       make(chan string),
+		incoming:       make(chan Message),
 		outgoing:       make(chan string),
 		port:           port,
 		listener:       ln,
@@ -37,8 +38,7 @@ func (s *Server) SendToClients(message string) {
 }
 
 func (s *Server) connect(conn net.Conn) {
-	name, _ := promptForName(conn)
-	log.Printf("%s", name)
+	name, _ := promptForNickName(conn)
 	client := NewClient(name, conn, s.incoming)
 	s.clients = append(s.clients, client)
 }
@@ -62,7 +62,7 @@ func (s *Server) loopThruIncoming() {
 	for {
 		select {
 		case chat := <-s.incoming:
-			s.SendToClients(chat)
+			s.SendToClients(fmt.Sprintf("%s: %s\n", chat.client.NickName, chat.msg))
 		case newConn := <-s.newConnections:
 			s.connect(newConn)
 		}
@@ -81,7 +81,7 @@ func NewListener(port string) net.Listener {
 }
 
 // Prompt the client for their name and set it in the client struct.
-func promptForName(conn net.Conn) (string, error) {
+func promptForNickName(conn net.Conn) (string, error) {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -89,9 +89,8 @@ func promptForName(conn net.Conn) (string, error) {
 	writer.Flush()
 
 	name, err := reader.ReadString('\n')
-	// Thanks to hyphenated (#go-nuts) for pointing out that I should also
-	// trim off the \r from the input
-	name = strings.TrimRight(name, "\r\n")
+
+	name = strings.TrimSpace(name)
 	return name, err
 }
 
