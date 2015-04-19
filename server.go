@@ -1,33 +1,75 @@
 package main
 
 import (
+	"bufio"
 	"log"
 	"net"
-	"os"
+	"strings"
 )
 
-const (
-	// Default port for the server to listen on
-	DEFAULT_PORT = ":2500"
-	// The maximum size of a message accepted from a client
-	MAX_MESSAGE_LENGTH = 512
-	// The Maximum size of a clients name
-	MAX_NAME_LENGTH = 16
-)
+type Server struct {
+	clients        []*Client
+	newConnections chan net.Conn
+	incoming       chan string
+	outgoing       chan string
+	port           string
+	listener       net.Listener
+}
 
-var client Client
-
-func main() {
-	var port string
-
-	if len(os.Args) >= 2 {
-		log.Printf("Attempting to listen on port: %s\n", os.Args[1])
-		port = ":" + os.Args[1]
-	} else {
-		log.Printf("Attempting to listen on port: %s", DEFAULT_PORT)
-		port = DEFAULT_PORT
+func NewServer(port string) *Server {
+	ln := NewListener(port)
+	server := &Server{
+		clients:        make([]*Client, 0),
+		newConnections: make(chan net.Conn),
+		incoming:       make(chan string),
+		outgoing:       make(chan string),
+		port:           port,
+		listener:       ln,
 	}
 
+	return server
+}
+
+func (s *Server) SendToClients(message string) {
+	for _, client := range s.clients {
+		client.output <- message
+	}
+}
+
+func (s *Server) connect(conn net.Conn) {
+	name, _ := promptForName(conn)
+	log.Printf("%s", name)
+	client := NewClient(name, conn, s.incoming)
+	s.clients = append(s.clients, client)
+}
+
+// Listen can be exported so that we can stop the server from
+// main or anywhere else and restart it later
+func (s *Server) Start() {
+	go s.loopThruIncoming()
+
+	go func() {
+		for {
+			conn, err := s.listener.Accept()
+			checkError(err)
+			s.newConnections <- conn
+		}
+	}()
+
+}
+
+func (s *Server) loopThruIncoming() {
+	for {
+		select {
+		case chat := <-s.incoming:
+			s.SendToClients(chat)
+		case newConn := <-s.newConnections:
+			s.connect(newConn)
+		}
+	}
+}
+
+func NewListener(port string) net.Listener {
 	ln, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatal(err)
@@ -35,67 +77,22 @@ func main() {
 		log.Printf("SUCCESS: Server listening on port: %s", port)
 	}
 
-	connection, err := ln.Accept()
-	checkError(err)
-
-	handleClient(connection)
-
-	// An infinite loop to keep us from exiting
-	for {
-
-	}
-
-	log.Printf("Exiting...")
-}
-
-func handleClient(conn net.Conn) {
-	var buffer [MAX_MESSAGE_LENGTH]byte
-	client.Conn = conn
-	//Prompt the client for a name
-	// TODO: Eventually we will have the client send their name
-	// upon connection without having the server prompt them for it
-	promptClientForName(client)
-
-	for {
-		buflen, err := conn.Read(buffer[0:])
-		// if for some reason we cannot read the clients input
-		// we should log the err and close the clients connection
-		if err != nil {
-			log.Println(err)
-			conn.Close()
-			return
-		}
-
-		// Print the clients input to the console and also return it to the client
-		sendToClient(client, string(buffer[:buflen]))
-
-	}
-}
-
-// Send message to the client
-func sendToClient(client Client, message string) {
-	_, err := client.Conn.Write([]byte(message))
-	if err != nil {
-		log.Println(err)
-		client.Conn.Close()
-	}
+	return ln
 }
 
 // Prompt the client for their name and set it in the client struct.
-func promptClientForName(client Client) {
-	client.Conn.Write([]byte("What is your name? "))
+func promptForName(conn net.Conn) (string, error) {
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
 
-	var buffer [MAX_NAME_LENGTH]byte
-	buflen, err := client.Conn.Read(buffer[0:])
-	if err != nil {
-		log.Println(err)
-		client.Conn.Write([]byte("There was an error with your input, please reconnect and try again.\n"))
-		client.Conn.Close()
-		return
-	}
+	writer.WriteString("What is your name?")
+	writer.Flush()
 
-	client.Name = string(buffer[:buflen])
-	client.Conn.Write([]byte("Hello, " + client.Name))
+	name, err := reader.ReadString('\n')
+	// Thanks to hyphenated (#go-nuts) for pointing out that I should also
+	// trim off the \r from the input
+	name = strings.TrimRight(name, "\r\n")
+	return name, err
 }
 
 // Check for an error.  If there is an error, log it, and exit the program
