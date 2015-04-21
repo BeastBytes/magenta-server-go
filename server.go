@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"regexp"
 	"strings"
 )
 
@@ -38,7 +39,7 @@ func (s *Server) SendToClients(message string) {
 }
 
 func (s *Server) connect(conn net.Conn) {
-	name, _ := promptForNickName(conn)
+	name := promptForNickName(conn)
 	client := NewClient(name, conn, s.incoming)
 	s.clients = append(s.clients, client)
 }
@@ -61,8 +62,8 @@ func (s *Server) Start() {
 func (s *Server) loopThruIncoming() {
 	for {
 		select {
-		case chat := <-s.incoming:
-			s.SendToClients(fmt.Sprintf("%s: %s\n", chat.client.NickName, chat.msg))
+		case msg := <-s.incoming:
+			s.SendToClients(fmt.Sprintf("%s: %s\n", msg.client.NickName, msg.msg))
 		case newConn := <-s.newConnections:
 			s.connect(newConn)
 		}
@@ -81,17 +82,37 @@ func NewListener(port string) net.Listener {
 }
 
 // Prompt the client for their name and set it in the client struct.
-func promptForNickName(conn net.Conn) (string, error) {
+func promptForNickName(conn net.Conn) string {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
-	writer.WriteString("What is your name?")
-	writer.Flush()
+	var name string
+	var err error
+	validName := false
+	for !validName {
 
-	name, err := reader.ReadString('\n')
+		writer.WriteString("What is your name?")
+		writer.Flush()
 
-	name = strings.TrimSpace(name)
-	return name, err
+		name, err = reader.ReadString('\n')
+		name = strings.TrimSpace(name)
+
+		if isValidName(name) && err == nil {
+			validName = true
+			log.Println(name, "has connected")
+		}
+	}
+	return name
+}
+
+func isValidName(name string) bool {
+	validRgx := regexp.MustCompile(`(^[A-Za-z]\w+\S*$)`)
+
+	if validRgx.MatchString(name) {
+		return true
+	}
+
+	return false
 }
 
 // Check for an error.  If there is an error, log it, and exit the program

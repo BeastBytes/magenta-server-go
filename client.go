@@ -63,7 +63,7 @@ func (c *Client) processInput() {
 		input, _ := c.reader.ReadString('\n')
 
 		// If the client sends an empty message just ignore it
-		if input := trimMessage(input); len(input) > 0 {
+		if input := trimMessage(input); !isEmpty(input) {
 			msg := NewMessage(c, input)
 			c.serverInput <- *msg
 		}
