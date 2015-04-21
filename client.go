@@ -25,11 +25,11 @@ type Client struct {
 	conn        net.Conn
 	reader      *bufio.Reader
 	writer      *bufio.Writer
-	serverInput chan string
+	serverInput chan Message
 	output      chan string
 }
 
-func NewClient(name string, conn net.Conn, serverInput chan string) *Client {
+func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -49,26 +49,29 @@ func NewClient(name string, conn net.Conn, serverInput chan string) *Client {
 	return client
 }
 
-// Run two loops, concurrently, that monitor the Client's input and
+// listen runs two loops, concurrently, that monitor the Client's input and
 // output channels
 func (c *Client) listen() {
-	go c.GetInput()
+	go c.processInput()
 	go c.SendOutput()
 }
 
-// When input is received from the Client send it to the server
-func (c *Client) GetInput() {
+// GetInput receives data from the Client and sends it to the server
+func (c *Client) processInput() {
 	for {
 		// The buffer will stop reading when it detects a new line chatacter
 		input, _ := c.reader.ReadString('\n')
 
-		// TODO: In the future, the server will be responsible for attaching
-		// the Client's NickName to the message
-		c.serverInput <- c.NickName + ": " + input
+		// If the client sends an empty message just ignore it
+		if input := trimMessage(input); !isEmpty(input) {
+			msg := NewMessage(c, input)
+			c.serverInput <- *msg
+		}
 	}
 }
 
-// When output is detected from the server send it to the Client
+// SendOutput monitors the output channel.  When data is received from the server
+// it is sent to the Client
 func (c *Client) SendOutput() {
 	for data := range c.output {
 		c.writer.WriteString(data)

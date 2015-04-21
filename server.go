@@ -2,15 +2,17 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net"
+	"regexp"
 	"strings"
 )
 
 type Server struct {
 	clients        []*Client
 	newConnections chan net.Conn
-	incoming       chan string
+	incoming       chan Message
 	outgoing       chan string
 	port           string
 	listener       net.Listener
@@ -21,7 +23,7 @@ func NewServer(port string) *Server {
 	server := &Server{
 		clients:        make([]*Client, 0),
 		newConnections: make(chan net.Conn),
-		incoming:       make(chan string),
+		incoming:       make(chan Message),
 		outgoing:       make(chan string),
 		port:           port,
 		listener:       ln,
@@ -37,8 +39,7 @@ func (s *Server) SendToClients(message string) {
 }
 
 func (s *Server) connect(conn net.Conn) {
-	name, _ := promptForName(conn)
-	log.Printf("%s", name)
+	name := promptForNickName(conn)
 	client := NewClient(name, conn, s.incoming)
 	s.clients = append(s.clients, client)
 }
@@ -61,8 +62,8 @@ func (s *Server) Start() {
 func (s *Server) loopThruIncoming() {
 	for {
 		select {
-		case chat := <-s.incoming:
-			s.SendToClients(chat)
+		case msg := <-s.incoming:
+			s.SendToClients(fmt.Sprintf("%s: %s\n", msg.client.NickName, msg.msg))
 		case newConn := <-s.newConnections:
 			s.connect(newConn)
 		}
@@ -81,18 +82,37 @@ func NewListener(port string) net.Listener {
 }
 
 // Prompt the client for their name and set it in the client struct.
-func promptForName(conn net.Conn) (string, error) {
+func promptForNickName(conn net.Conn) string {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
-	writer.WriteString("What is your name?")
-	writer.Flush()
+	var name string
+	var err error
+	validName := false
+	for !validName {
 
-	name, err := reader.ReadString('\n')
-	// Thanks to hyphenated (#go-nuts) for pointing out that I should also
-	// trim off the \r from the input
-	name = strings.TrimRight(name, "\r\n")
-	return name, err
+		writer.WriteString("What is your name?")
+		writer.Flush()
+
+		name, err = reader.ReadString('\n')
+		name = strings.TrimSpace(name)
+
+		if isValidName(name) && err == nil {
+			validName = true
+			log.Println(name, "has connected")
+		}
+	}
+	return name
+}
+
+func isValidName(name string) bool {
+	validRgx := regexp.MustCompile(`(^[A-Za-z]\w+\S*$)`)
+
+	if validRgx.MatchString(name) {
+		return true
+	}
+
+	return false
 }
 
 // Check for an error.  If there is an error, log it, and exit the program
