@@ -1,17 +1,3 @@
-/************************************************
-* client.go
-* Author: Jeramy Singleton
-* Date: 12 April 2015
-*
-* Description:  A client is a remote user that
-* has connected to the server.  Information for
-* the client should be stored in a struct and
-* be accessible to the server.
-
-* Reference for Read and Write functionality:
-* https://gist.github.com/drewolson/3950226
-*************************************************/
-
 package main
 
 import (
@@ -44,14 +30,14 @@ func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 
 	// Start the loops that constantly monitor for input and output
 	// from the client
-	client.listen()
+	client.run()
 
 	return client
 }
 
-// listen runs two loops, concurrently, that monitor the Client's input and
+// run starts two loops, concurrently, that monitor the Client's input and
 // output channels
-func (c *Client) listen() {
+func (c *Client) run() {
 	go c.processInput()
 	go c.SendOutput()
 }
@@ -68,6 +54,13 @@ func (c *Client) processInput() {
 			c.serverInput <- *msg
 		}
 	}
+}
+
+// Close closes the clients connection and frees resources
+func (c *Client) Close(msg string) {
+	c.output <- msg
+	c.conn.Close()
+	close(c.output)
 }
 
 // SendOutput monitors the output channel.  When data is received from the server

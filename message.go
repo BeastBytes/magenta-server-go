@@ -7,6 +7,7 @@ type Message struct {
 	msg    string
 }
 
+// NewMessage returns a new Message
 func NewMessage(client *Client, msg string) *Message {
 	return &Message{client, msg}
 }
