@@ -99,9 +99,9 @@ func newListener(port string) net.Listener {
 	ln, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("SUCCESS: Server listening on port: %s", port)
 	}
+
+	log.Printf("SUCCESS: Server listening on port: %s", port)
 
 	return ln
 }
@@ -134,11 +134,7 @@ func promptForNickName(conn net.Conn) string {
 func isValidName(name string) bool {
 	validRgx := regexp.MustCompile(`(^[A-Za-z]\w+\S*$)`)
 
-	if validRgx.MatchString(name) {
-		return true
-	}
-
-	return false
+	return validRgx.MatchString(name)
 }
 
 // Check for an error.  If there is an error, log it, and exit the program

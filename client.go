@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"net"
+	"time"
 )
 
 type Client struct {
@@ -13,6 +15,7 @@ type Client struct {
 	writer      *bufio.Writer
 	serverInput chan Message
 	output      chan string
+	idle        time.Time
 }
 
 func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
@@ -26,6 +29,7 @@ func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 		writer:      writer,
 		serverInput: serverInput,
 		output:      make(chan string),
+		idle:        time.Now(),
 	}
 
 	// Start the loops that constantly monitor for input and output
@@ -47,11 +51,12 @@ func (c *Client) processInput() {
 	for {
 		// The buffer will stop reading when it detects a new line chatacter
 		input, _ := c.reader.ReadString('\n')
-
+		c.idle = time.Now()
 		// If the client sends an empty message just ignore it
 		if input := trimMessage(input); !isEmpty(input) {
 			msg := NewMessage(c, input)
 			c.serverInput <- *msg
+
 		}
 	}
 }
@@ -70,4 +75,21 @@ func (c *Client) SendOutput() {
 		c.writer.WriteString(data)
 		c.writer.Flush()
 	}
+}
+
+// isIdle checks the last time the Client was active.
+func (c *Client) isIdle() bool {
+	now := time.Now()
+	if now.Sub(c.idle) >= IdleTime*time.Minute {
+		return true
+	}
+
+	return false
+}
+
+func (c *Client) getIdle() string {
+	if c.isIdle() {
+		return fmt.Sprintf("%v", c.idle)
+	}
+	return "active"
 }
