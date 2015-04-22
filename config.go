@@ -1,10 +1,14 @@
 package main
 
 const (
-	// Default port for the server to listen on
+	// DefaultPort for the server to listen on
 	DefaultPort = ":2500"
-	// The maximum size of a message accepted from a client
+	// MaxMessageLength is the maximum size of a message
+	// accepted from a client
 	MaxMessageLength = 512
-	// The Maximum size of a clients name
+	// MaxNameLength is the maximum size of a clients name
 	MaxNameLength = 16
+	// IdleTime is the amount of time a client is inactive
+	// before it is considered idle.
+	IdleTime = 5 // in minutes
 )

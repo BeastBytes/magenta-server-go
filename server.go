@@ -14,17 +14,20 @@ type Server struct {
 	newConnections chan net.Conn
 	incoming       chan Message
 	outgoing       chan string
+	quit           chan bool
 	port           string
 	listener       net.Listener
 }
 
-func NewServer(port string) *Server {
-	ln := NewListener(port)
+// NewServer creates a new server object
+func NewServer(port string, quit chan bool) *Server {
+	ln := newListener(port)
 	server := &Server{
 		clients:        make([]*Client, 0),
 		newConnections: make(chan net.Conn),
 		incoming:       make(chan Message),
 		outgoing:       make(chan string),
+		quit:           quit,
 		port:           port,
 		listener:       ln,
 	}
@@ -32,34 +35,55 @@ func NewServer(port string) *Server {
 	return server
 }
 
+// SendToClients passes a message to all the clients
+// connected
 func (s *Server) SendToClients(message string) {
 	for _, client := range s.clients {
 		client.output <- message
 	}
 }
 
+// connect prompts a user for a nickname, creates a new
+// client and adds that client to the list of clients
 func (s *Server) connect(conn net.Conn) {
 	name := promptForNickName(conn)
 	client := NewClient(name, conn, s.incoming)
 	s.clients = append(s.clients, client)
 }
 
-// Listen can be exported so that we can stop the server from
-// main or anywhere else and restart it later
-func (s *Server) Start() {
-	go s.loopThruIncoming()
-
-	go func() {
-		for {
-			conn, err := s.listener.Accept()
-			checkError(err)
-			s.newConnections <- conn
-		}
-	}()
-
+// Run listens for incoming connections and starts
+// the loop that processes incoming messages from
+// clients
+func (s *Server) Run() {
+	go s.listen()
+	go s.processIncoming()
 }
 
-func (s *Server) loopThruIncoming() {
+// listen listens for new connections and passes
+// those new connections on
+func (s *Server) listen() {
+	for {
+		conn, err := s.listener.Accept()
+		checkError(err)
+		s.newConnections <- conn
+		log.Print("Server: new connection from IP", conn.RemoteAddr().String())
+	}
+}
+
+// Stop stops the server and frees up resources
+func (s *Server) Stop() {
+	log.Println("Server: stopping")
+	close(s.newConnections)
+	for _, c := range s.clients {
+		c.Close("Server has shutdown, please come back later")
+	}
+	s.quit <- true
+}
+
+// processIncoming monitors all server channels
+// for incoming messages.  Those messages can be
+// from clients, or even the server itself
+func (s *Server) processIncoming() {
 	for {
 		select {
 		case msg := <-s.incoming:
@@ -70,13 +94,14 @@ func (s *Server) loopThruIncoming() {
 	}
 }
 
-func NewListener(port string) net.Listener {
+// newListener returns a new net.Listener
+func newListener(port string) net.Listener {
 	ln, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("SUCCESS: Server listening on port: %s", port)
 	}
+
+	log.Printf("SUCCESS: Server listening on port: %s", port)
 
 	return ln
 }
@@ -105,14 +130,11 @@ func promptForNickName(conn net.Conn) string {
 	return name
 }
 
+// isValidName checks a name for invalid characters.
 func isValidName(name string) bool {
 	validRgx := regexp.MustCompile(`(^[A-Za-z]\w+\S*$)`)
 
-	if validRgx.MatchString(name) {
-		return true
-	}
-
-	return false
+	return validRgx.MatchString(name)
 }
 
 // Check for an error.  If there is an error, log it, and exit the program

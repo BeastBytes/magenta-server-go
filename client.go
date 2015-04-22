@@ -1,22 +1,10 @@
-/************************************************
-* client.go
-* Author: Jeramy Singleton
-* Date: 12 April 2015
-*
-* Description:  A client is a remote user that
-* has connected to the server.  Information for
-* the client should be stored in a struct and
-* be accessible to the server.
-
-* Reference for Read and Write functionality:
-* https://gist.github.com/drewolson/3950226
-*************************************************/
-
 package main
 
 import (
 	"bufio"
+	"fmt"
 	"net"
+	"time"
 )
 
 type Client struct {
@@ -27,6 +15,7 @@ type Client struct {
 	writer      *bufio.Writer
 	serverInput chan Message
 	output      chan string
+	idle        time.Time
 }
 
 func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
@@ -40,18 +29,19 @@ func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 		writer:      writer,
 		serverInput: serverInput,
 		output:      make(chan string),
+		idle:        time.Now(),
 	}
 
 	// Start the loops that constantly monitor for input and output
 	// from the client
-	client.listen()
+	client.run()
 
 	return client
 }
 
-// listen runs two loops, concurrently, that monitor the Client's input and
+// run starts two loops, concurrently, that monitor the Client's input and
 // output channels
-func (c *Client) listen() {
+func (c *Client) run() {
 	go c.processInput()
 	go c.SendOutput()
 }
@@ -61,13 +51,21 @@ func (c *Client) processInput() {
 	for {
 		// The buffer will stop reading when it detects a new line chatacter
 		input, _ := c.reader.ReadString('\n')
-
+		c.idle = time.Now()
 		// If the client sends an empty message just ignore it
 		if input := trimMessage(input); !isEmpty(input) {
 			msg := NewMessage(c, input)
 			c.serverInput <- *msg
+
 		}
 	}
+}
+
+// Close closes the clients connection and frees resources
+func (c *Client) Close(msg string) {
+	c.output <- msg
+	c.conn.Close()
+	close(c.output)
 }
 
 // SendOutput monitors the output channel.  When data is received from the server
@@ -77,4 +75,21 @@ func (c *Client) SendOutput() {
 		c.writer.WriteString(data)
 		c.writer.Flush()
 	}
+}
+
+// isIdle checks the last time the Client was active.
+func (c *Client) isIdle() bool {
+	now := time.Now()
+	if now.Sub(c.idle) >= IdleTime*time.Minute {
+		return true
+	}
+
+	return false
+}
+
+func (c *Client) getIdle() string {
+	if c.isIdle() {
+		return fmt.Sprintf("%v", c.idle)
+	}
+	return "active"
 }

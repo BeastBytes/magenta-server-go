@@ -5,25 +5,25 @@ import (
 	"os"
 )
 
-var quit chan bool
-
 func main() {
-	quit = make(chan bool)
+	quit := make(chan bool)
 	port := getPort()
 
-	server := NewServer(port)
-	server.Start()
+	server := NewServer(port, quit)
+	server.Run()
 
 	for {
 		select {
-		case quit := <-quit:
-			if quit == true {
-				os.Exit(1)
-			}
+		case <-quit:
+			server.Stop()
+			os.Exit(1)
 		}
 	}
 }
 
+// getPort attempts to parse a port from any arguments passed during
+// startup.  If no port is included then the server uses the default
+// port.
 func getPort() string {
 	var port string
 	if len(os.Args) >= 2 {
