@@ -43,14 +43,6 @@ func (s *Server) SendToClients(message string) {
 	}
 }
 
-// connect prompts a user for a nickname, creates a new
-// client and adds that client to the list of clients
-func (s *Server) connect(conn net.Conn) {
-	name := promptForNickName(conn)
-	client := NewClient(name, conn, s.incoming)
-	s.clients = append(s.clients, client)
-}
-
 // Run listens for incoming connections and starts
 // the loop that processes incoming messages from
 // clients
@@ -89,7 +81,7 @@ func (s *Server) processIncoming() {
 		case msg := <-s.incoming:
 			s.SendToClients(fmt.Sprintf("%s: %s\n", msg.client.NickName, msg.msg))
 		case newConn := <-s.newConnections:
-			s.connect(newConn)
+			go s.connect(newConn)
 		}
 	}
 }
@@ -104,6 +96,14 @@ func newListener(port string) net.Listener {
 	log.Printf("SUCCESS: Server listening on port: %s", port)
 
 	return ln
+}
+
+// connect prompts a user for a nickname, creates a new
+// client and adds that client to the list of clients
+func (s *Server) connect(conn net.Conn) {
+	name := promptForNickName(conn)
+	client := NewClient(name, conn, s.incoming)
+	s.clients = append(s.clients, client)
 }
 
 // Prompt the client for their name and set it in the client struct.
