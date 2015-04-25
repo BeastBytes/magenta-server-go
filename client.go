@@ -18,6 +18,7 @@ type Client struct {
 	idle        time.Time
 }
 
+// NewClient returns a pointer to a Client object
 func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
