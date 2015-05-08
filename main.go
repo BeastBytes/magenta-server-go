@@ -9,6 +9,8 @@ func main() {
 	quit := make(chan bool)
 	port := getPort()
 
+	InitCommands()
+
 	server := NewServer(port, quit)
 	server.Run()
 

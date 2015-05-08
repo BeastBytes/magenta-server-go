@@ -2,10 +2,10 @@ package main
 
 type Command struct {
 	Name string
-	Cmd  func(name string, params ...string)
+	Cmd  func(c *Client, words []string)
 }
 
 // NewCommand returns a new Command
-func NewCommand(name string, cmd func(params ...string)) *Command {
-	return &Command(name, cmd)
+func NewCommand(name string, cmd func(c *Client, words []string)) *Command {
+	return &Command{Name: name, Cmd: cmd}
 }
