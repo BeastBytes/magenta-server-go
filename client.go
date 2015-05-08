@@ -8,8 +8,8 @@ import (
 )
 
 type Client struct {
-	NickName    string
-	RealName    string
+	nickname    string
+	realname    string
 	conn        net.Conn
 	reader      *bufio.Reader
 	writer      *bufio.Writer
@@ -24,7 +24,8 @@ func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 	writer := bufio.NewWriter(conn)
 
 	client := &Client{
-		NickName:    name,
+		nickname:    name,
+		realname:    "",
 		conn:        conn,
 		reader:      reader,
 		writer:      writer,
@@ -88,9 +89,36 @@ func (c *Client) isIdle() bool {
 	return false
 }
 
+// getIdle returns a string with the last time the client
+// was active
 func (c *Client) getIdle() string {
 	if c.isIdle() {
 		return fmt.Sprintf("%v", c.idle)
 	}
 	return "active"
+}
+
+// Connection returns the clients connection
+func (c *Client) Connection() net.Conn {
+	return c.conn
+}
+
+// ChannelOut returns the clients output channel
+func (c *Client) ChannelOut() chan string {
+	return c.output
+}
+
+// Nickname returns a string containing the Clients nickname
+func (c *Client) Nickname() string {
+	return c.nickname
+}
+
+// RealName returns a string containing the Clients real name
+func (c *Client) Realname() string {
+	return c.realname
+}
+
+// Receive provides an interface to the clients output channel
+func (c *Client) Receive(str string) {
+	c.output <- str
 }
