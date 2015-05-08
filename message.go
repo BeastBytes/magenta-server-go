@@ -12,11 +12,11 @@ func NewMessage(client *Client, msg string) *Message {
 	return &Message{client, msg}
 }
 
-// Remove the return and newline characters from a string
+// Remove trailing spaces, return, and newline characters from a string
 // Thanks to hyphenated (#go-nuts) for pointing out that I
 // should also trim off the \r from the input
 func trimMessage(msg string) string {
-	return strings.TrimRight(msg, "\r\n")
+	return strings.TrimRight(msg, " \r\n")
 }
 
 // isEmpty is a helper function to check for an empty string
