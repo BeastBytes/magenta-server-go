@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -39,7 +40,7 @@ func NewServer(port string, quit chan bool) *Server {
 // connected
 func (s *Server) SendToClients(message string) {
 	for _, client := range s.clients {
-		client.output <- message
+		client.Receive(message)
 	}
 }
 
@@ -79,7 +80,10 @@ func (s *Server) processIncoming() {
 	for {
 		select {
 		case msg := <-s.incoming:
-			s.SendToClients(fmt.Sprintf("%s: %s\n", msg.client.NickName, msg.msg))
+			isCommand := s.parseMessage(msg)
+			if !isCommand {
+				s.SendToClients(fmt.Sprintf("%s: %s\n", msg.client.Nickname(), msg.msg))
+			}
 		case newConn := <-s.newConnections:
 			go s.connect(newConn)
 		}
@@ -135,6 +139,51 @@ func isValidName(name string) bool {
 	validRgx := regexp.MustCompile(`(^[A-Za-z]\w+\S*$)`)
 
 	return validRgx.MatchString(name)
+}
+
+// parseMessage checks to see if a msg contains a command
+// from the client. If it does contain a command that command
+// is run and the method returns true.  If no command is found
+// the method returns false
+func (s *Server) parseMessage(msg Message) bool {
+	words := strings.Split(msg.msg, " ")
+	cmd := words[0]
+
+	cmdRgx := regexp.MustCompile(`^[\/]\w+`)
+
+	if cmdRgx.MatchString(cmd) {
+		cmd, err := parseCommand(words)
+		if err != nil {
+			msg.client.Receive(fmt.Sprintf("%s\n", err.Error()))
+		} else {
+			cmd.Cmd(msg.client, words)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// parseCommand attempts to match a command request sent by the client
+// to any commands contained in the Commands slice.  If found, the
+// function returns that command and a nil error.  If not found, it
+// returns nil and an invalid command error.
+func parseCommand(words []string) (*Command, error) {
+	cmd := words[0]
+	cmd = strings.TrimLeft(cmd, "/")
+
+	command := GetCommand(strings.ToLower(cmd))
+
+	if command == nil {
+		return nil, errors.New("cmd: invalid command")
+	}
+
+	if len(words) <= 1 {
+		return nil, errors.New("cmd: invalid number of parameters")
+	}
+
+	return command, nil
 }
 
 // Check for an error.  If there is an error, log it, and exit the program
