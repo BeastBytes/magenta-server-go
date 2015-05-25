@@ -30,11 +30,12 @@ func InitCommands() {
 
 	// join command tells the server that the user wishes to join, or create,
 	// a certain channel
-	RegisterCommand(NewCommand("join", func(c *Client, s *Server, words []string) {
+	RegisterCommand(NewCommand("join", func(u User, s *Server, words []string) {
 		channel := words[1]
 		if IsValidChannelName(channel) {
 			if !s.HasChannel(channel) {
 				s.AddChannel(channel)
+				u.ChannelOut() <-
 			}
 			s.AddUserToChannel(channel, c)
 		} else {
@@ -44,17 +45,17 @@ func InitCommands() {
 
 	// part commmand sends the server a message that the user is ready to leave
 	// the channel passed
-	RegisterCommand(NewCommand("part", func(c *Client, s *Server, words []string) {
+	RegisterCommand(NewCommand("part", func(u User, s *Server, words []string) {
 		channel := words[1]
 		if IsValidChannelName(channel) && s.HasChannel(channel) {
-			s.RemoveUserFromChannel(channel, c)
+			s.RemoveUserFromChannel(channel, u)
 		}
 	}))
 
 	// channel command is divided into subcommands.
 	// The first subcommand is "users".
 	// "users" sends a list of all users in a channel
-	RegisterCommand(NewCommand("channel", func(c *Client, s *Server, words []string) {
+	RegisterCommand(NewCommand("channel", func(u User, s *Server, words []string) {
 		chanName := words[1]
 
 		var subCmd string
