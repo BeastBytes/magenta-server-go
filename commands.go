@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var (
 	Commands = make([]*Command, 0)
@@ -24,11 +27,59 @@ func GetCommand(name string) *Command {
 
 // InitCommands registers commands with the Commands slice
 func InitCommands() {
-	RegisterCommand(NewCommand("join", func(c *Client, words []string) {
-		fmt.Printf("%s wants to join %s\n", c.Nickname(), words[1])
+
+	// join command tells the server that the user wishes to join, or create,
+	// a certain channel
+	RegisterCommand(NewCommand("join", func(c *Client, s *Server, words []string) {
+		channel := words[1]
+		if IsValidChannelName(channel) {
+			if !s.HasChannel(channel) {
+				s.AddChannel(channel)
+			}
+			s.AddUserToChannel(channel, c)
+		} else {
+			c.ChannelOut() <- "Invalid channel name"
+		}
 	}))
 
-	RegisterCommand(NewCommand("part", func(c *Client, words []string) {
-		fmt.Printf("%s wants to part %s\n", c.Nickname(), words[1])
+	// part commmand sends the server a message that the user is ready to leave
+	// the channel passed
+	RegisterCommand(NewCommand("part", func(c *Client, s *Server, words []string) {
+		channel := words[1]
+		if IsValidChannelName(channel) && s.HasChannel(channel) {
+			s.RemoveUserFromChannel(channel, c)
+		}
+	}))
+
+	// channel command is divided into subcommands.
+	// The first subcommand is "users".
+	// "users" sends a list of all users in a channel
+	RegisterCommand(NewCommand("channel", func(c *Client, s *Server, words []string) {
+		chanName := words[1]
+
+		var subCmd string
+		if len(words) > 2 {
+			subCmd = words[2]
+		}
+
+		fmt.Println(subCmd)
+
+		if subCmd != "" {
+			switch subCmd {
+			// get a list of all users in the channel
+			case "users":
+				channel, err := s.getChannel(chanName)
+
+				if err == nil {
+					channelStats := fmt.Sprintf("%s has %d users.\n-----------------\n", chanName, len(channel.Users()))
+					users := make([]string, 0)
+					for _, u := range channel.Users() {
+						users = append(users, u.Nickname())
+					}
+					usersString := strings.Join(users, ", ")
+					c.ChannelOut() <- channelStats + usersString + "\n"
+				}
+			}
+		}
 	}))
 }
