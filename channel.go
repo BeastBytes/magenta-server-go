@@ -1,20 +1,31 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 type Channel struct {
+	name  string
+	topic string
 	users []User
+	in    chan Message
 	join  chan User
 	part  chan User
 }
 
+// A valid channel name is any word
+var ValidChannelNameRgx = regexp.MustCompile(`^(#)([A-Za-z])\w+`)
+
 // NewChannel initializes a Channel object and returns it
 // to the caller
-func NewChannel() *Channel {
+func NewChannel(name string) *Channel {
 	return &Channel{
 		users: make([]User, 0),
-		join:  make(chan User),
-		part:  make(chan User),
+		name:  name,
+		in:    make(chan Message, 5),
+		join:  make(chan User, 5),
+		part:  make(chan User, 5),
 	}
 }
 
@@ -22,6 +33,8 @@ func NewChannel() *Channel {
 func (c *Channel) listen() {
 	for {
 		select {
+		case msg := <-c.in:
+			c.sendToChannel(msg)
 		case j := <-c.join:
 			c.addUser(j)
 		case p := <-c.part:
@@ -58,4 +71,14 @@ func (c *Channel) addUser(user User) {
 // Users returns the users in the channel
 func (c *Channel) Users() []User {
 	return c.users
+}
+
+// IsValidChannelName checks the length and format of a string and returns
+// true if the string is valid
+func IsValidChannelName(name string) bool {
+	if len(name) < 50 && ValidChannelNameRgx.MatchString(name) {
+		return true
+	}
+
+	return false
 }
