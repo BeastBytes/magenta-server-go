@@ -21,6 +21,10 @@ type Server struct {
 	listener       net.Listener
 }
 
+const (
+	ChannelDoesNotExistError = "%s channel does not exist\n"
+)
+
 // NewServer creates a new server object
 func NewServer(port string, quit chan bool) *Server {
 	ln := newListener(port)
@@ -124,26 +128,58 @@ func (s *Server) connect(conn net.Conn) {
 	s.clients = append(s.clients, client)
 }
 
+// AddChannel adds a new channel to the servers channels slice.
+// It first checks to make sure the server does not already contain
+// the channel.  If the channel does not already exist the server
+// creates the channel and starts the channel listener
 func (s *Server) AddChannel(channel string) {
 	if !s.HasChannel(channel) {
 		s.channels[channel] = NewChannel(channel)
 		go s.channels[channel].listen()
-		fmt.Printf("%s channel added\n", channel)
+		log.Printf("%s channel added\n", channel)
 	}
 }
 
+// HasChannel checks if the server contains a specific channel
+// based off the channel name
 func (s *Server) HasChannel(channel string) bool {
 	_, ok := s.channels[channel]
 	return ok
 }
 
+// AddUserToChannel sends a message to the channels join channel
+// to add the user to that channels slice of users.  It first checks
+// to see if the channel exists on the server.
 func (s *Server) AddUserToChannel(channel string, user User) {
-	if s.HasChannel(channel) {
-		c := s.channels[channel]
+	c, err := s.getChannel(channel)
+	if err == nil {
 		c.join <- user
 	} else {
-		fmt.Printf("%s not a valid channel\n", channel)
+		log.Printf(ChannelDoesNotExistError, channel)
 	}
+}
+
+// RemoveUserFromChannel sends a message to the channels part channel
+// to remove a user from it's user slice.
+func (s *Server) RemoveUserFromChannel(channel string, user User) {
+	c, err := s.getChannel(channel)
+	if err == nil {
+		c.part <- user
+	} else {
+		log.Printf(ChannelDoesNotExistError, channel)
+	}
+}
+
+// getChannel returns a channel and a nil error, if it exists, that contains
+// the same name as the parameter passed.  If the channel does not exist on
+// the server a nil channel is returned along with an error
+func (s *Server) getChannel(channel string) (*Channel, error) {
+	c, ok := s.channels[channel]
+	if !ok {
+		return nil, errors.New("Channel does not exist")
+	}
+
+	return c, nil
 }
 
 // Prompt the client for their name and set it in the client struct.
