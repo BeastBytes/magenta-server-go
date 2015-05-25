@@ -12,6 +12,7 @@ import (
 
 type Server struct {
 	clients        []*Client
+	channels       map[string]*Channel
 	newConnections chan net.Conn
 	incoming       chan Message
 	outgoing       chan string
@@ -25,6 +26,7 @@ func NewServer(port string, quit chan bool) *Server {
 	ln := newListener(port)
 	server := &Server{
 		clients:        make([]*Client, 0),
+		channels:       make(map[string]*Channel),
 		newConnections: make(chan net.Conn),
 		incoming:       make(chan Message),
 		outgoing:       make(chan string),
@@ -90,16 +92,28 @@ func (s *Server) processIncoming() {
 	}
 }
 
-// newListener returns a new net.Listener
-func newListener(port string) net.Listener {
-	ln, err := net.Listen("tcp", port)
-	if err != nil {
-		log.Fatal(err)
+// parseMessage checks to see if a msg contains a command
+// from the client. If it does contain a command that command
+// is run and the method returns true.  If no command is found
+// the method returns false
+func (s *Server) parseMessage(msg Message) bool {
+	words := strings.Split(msg.msg, " ")
+	cmd := words[0]
+
+	cmdRgx := regexp.MustCompile(`^[\/]\w+`)
+
+	if cmdRgx.MatchString(cmd) {
+		cmd, err := parseCommand(words)
+		if err != nil {
+			msg.client.Receive(fmt.Sprintf("%s\n", err.Error()))
+		} else {
+			cmd.Cmd(msg.client, s, words)
+		}
+
+		return true
 	}
 
-	log.Printf("SUCCESS: Server listening on port: %s", port)
-
-	return ln
+	return false
 }
 
 // connect prompts a user for a nickname, creates a new
@@ -108,6 +122,28 @@ func (s *Server) connect(conn net.Conn) {
 	name := promptForNickName(conn)
 	client := NewClient(name, conn, s.incoming)
 	s.clients = append(s.clients, client)
+}
+
+func (s *Server) AddChannel(channel string) {
+	if !s.HasChannel(channel) {
+		s.channels[channel] = NewChannel(channel)
+		go s.channels[channel].listen()
+		fmt.Printf("%s channel added\n", channel)
+	}
+}
+
+func (s *Server) HasChannel(channel string) bool {
+	_, ok := s.channels[channel]
+	return ok
+}
+
+func (s *Server) AddUserToChannel(channel string, user User) {
+	if s.HasChannel(channel) {
+		c := s.channels[channel]
+		c.join <- user
+	} else {
+		fmt.Printf("%s not a valid channel\n", channel)
+	}
 }
 
 // Prompt the client for their name and set it in the client struct.
@@ -141,30 +177,6 @@ func isValidName(name string) bool {
 	return validRgx.MatchString(name)
 }
 
-// parseMessage checks to see if a msg contains a command
-// from the client. If it does contain a command that command
-// is run and the method returns true.  If no command is found
-// the method returns false
-func (s *Server) parseMessage(msg Message) bool {
-	words := strings.Split(msg.msg, " ")
-	cmd := words[0]
-
-	cmdRgx := regexp.MustCompile(`^[\/]\w+`)
-
-	if cmdRgx.MatchString(cmd) {
-		cmd, err := parseCommand(words)
-		if err != nil {
-			msg.client.Receive(fmt.Sprintf("%s\n", err.Error()))
-		} else {
-			cmd.Cmd(msg.client, words)
-		}
-
-		return true
-	}
-
-	return false
-}
-
 // parseCommand attempts to match a command request sent by the client
 // to any commands contained in the Commands slice.  If found, the
 // function returns that command and a nil error.  If not found, it
@@ -184,6 +196,18 @@ func parseCommand(words []string) (*Command, error) {
 	}
 
 	return command, nil
+}
+
+// newListener returns a new net.Listener
+func newListener(port string) net.Listener {
+	ln, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("SUCCESS: Server listening on port: %s", port)
+
+	return ln
 }
 
 // Check for an error.  If there is an error, log it, and exit the program
