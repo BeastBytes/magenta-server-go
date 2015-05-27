@@ -10,6 +10,7 @@ func main() {
 	port := getPort()
 
 	InitCommands()
+	InitStatusCodeMessages()
 
 	server := NewServer(port, quit)
 	server.Run()

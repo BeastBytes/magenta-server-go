@@ -40,7 +40,7 @@ var User2 = &client{"Chuck", "Chuck Popagopalus", nil, nil}
 var User3 = &client{"Alexis", "Alexis Hurly", nil, nil}
 
 func setup() {
-	channel = NewChannel()
+	channel = NewChannel("#test")
 }
 
 func tearDown() {
@@ -93,4 +93,21 @@ func TestRemoveClient(t *testing.T) {
 	}
 
 	tearDown()
+}
+
+func TestValidChannelName(t *testing.T) {
+	validNames := []string{"#test", "#test1", "#tes_t"}
+	invalidNames := []string{"t#est", "1test", "_test"}
+
+	for _, validName := range validNames {
+		if !IsValidChannelName(validName) {
+			t.Errorf("%s should be a valid channel name", validName)
+		}
+	}
+
+	for _, invalidName := range invalidNames {
+		if IsValidChannelName(invalidName) {
+			t.Errorf("%s should not be a valid channel name", invalidName)
+		}
+	}
 }

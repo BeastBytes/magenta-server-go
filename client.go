@@ -45,7 +45,7 @@ func NewClient(name string, conn net.Conn, serverInput chan Message) *Client {
 // output channels
 func (c *Client) run() {
 	go c.processInput()
-	go c.SendOutput()
+	go c.sendOutput()
 }
 
 // GetInput receives data from the Client and sends it to the server
@@ -72,7 +72,7 @@ func (c *Client) Close(msg string) {
 
 // SendOutput monitors the output channel.  When data is received from the server
 // it is sent to the Client
-func (c *Client) SendOutput() {
+func (c *Client) sendOutput() {
 	for data := range c.output {
 		c.writer.WriteString(data)
 		c.writer.Flush()
